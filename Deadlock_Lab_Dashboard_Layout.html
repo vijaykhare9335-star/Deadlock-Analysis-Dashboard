@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Deadlock Lab – Banker’s Algorithm, Detection, Prevention</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;800&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* DeadlockLab dashboard shell */
+
+:root{--bg:#eef1f6;--card:#fff;--ink:#1b2a41;--mut:#5d6b82;--line:#d7deea;--soft:#f4f6fb;--pri:#3b4cca;--safe:#0f9d84;--wait:#d19200;--uns:#e8590c;--dead:#d62839;--inv:#7b2cbf;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#10162a;--card:#1a2240;--ink:#e8ecf7;--mut:#9aa7c4;--line:#2d3a63;--soft:#212b50;--pri:#8a97ff;--safe:#2bd4b0;--wait:#f2b933;--uns:#ff8a4c;--dead:#ff5c6c;--inv:#c08bff}}
+:root[data-theme="dark"]{--bg:#10162a;--card:#1a2240;--ink:#e8ecf7;--mut:#9aa7c4;--line:#2d3a63;--soft:#212b50;--pri:#8a97ff;--safe:#2bd4b0;--wait:#f2b933;--uns:#ff8a4c;--dead:#ff5c6c;--inv:#c08bff}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "Bricolage Grotesque",system-ui,sans-serif}
+.mono,input,td.n{font-family:"IBM Plex Mono",ui-monospace,monospace}
+.wrap{max-width:1180px;margin:0 auto;padding:18px 14px 60px}
+h1{font-size:clamp(28px,5vw,46px);font-weight:800;margin:6px 0 2px;letter-spacing:-.02em}
+h2{font-size:19px;margin:0 0 8px}h3{font-size:15px;margin:14px 0 6px}
+.sub{color:var(--mut);max-width:70ch;margin:0 0 12px}
+.legend{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 16px}
+.pill{border-radius:99px;padding:3px 12px 3px 8px;background:var(--card);border:1px solid var(--line);font-size:13px;display:inline-flex;gap:6px;align-items:center}
+.pill i{width:10px;height:10px;border-radius:50%;background:var(--c)}
+nav{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+nav button{font:inherit;font-weight:600;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:9px 16px;border-radius:12px 12px 4px 4px;cursor:pointer}
+nav button[aria-selected=true]{background:var(--pri);color:#fff;border-color:var(--pri)}
+:focus-visible{outline:3px solid var(--pri);outline-offset:2px}
+.tab{display:none}.tab.on{display:block}
+.grid{display:grid;grid-template-columns:1.15fr 1fr;gap:14px}
+@media(max-width:860px){.grid{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:14px;min-width:0}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{padding:5px 6px;text-align:center;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:600;font-size:13px}
+td.l,th.l{text-align:left}
+td.g{border-left:2px solid var(--line)}
+input[type=number]{width:44px;padding:4px;border:1px solid var(--line);border-radius:8px;background:var(--soft);color:var(--ink);text-align:center}
+input.bad{border-color:var(--dead);background:color-mix(in srgb,var(--dead) 18%,var(--card))}
+select,.btn{font:inherit;border-radius:10px;border:1px solid var(--line);background:var(--soft);color:var(--ink);padding:6px 10px}
+.btn{cursor:pointer;font-weight:600}.btn.p{background:var(--pri);border-color:var(--pri);color:#fff}
+.btn:hover{filter:brightness(1.08)}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.chip{min-width:58px;text-align:center;padding:8px 10px;border-radius:12px;border:2px dashed var(--line);font-weight:800;color:var(--mut);transition:all .35s}
+.chip.done{border:2px solid var(--safe);background:color-mix(in srgb,var(--safe) 18%,var(--card));color:var(--ink);transform:translateY(-4px)}
+.chip.stuck{border:2px solid var(--uns);background:color-mix(in srgb,var(--uns) 18%,var(--card));color:var(--ink)}
+.chip small{display:block;font-weight:400;font-size:11px}
+.gauge{display:flex;align-items:center;gap:8px;margin:5px 0}
+.gauge b{width:70px}.gauge .tr{flex:1;height:16px;background:var(--soft);border-radius:8px;overflow:hidden;border:1px solid var(--line)}
+.gauge .fi{height:100%;background:var(--pri);transition:width .6s}
+.gauge span{width:70px;text-align:right}
+.verdict{border-left:8px solid var(--c);background:color-mix(in srgb,var(--c) 14%,var(--card));padding:12px 14px;border-radius:6px 14px 14px 6px;margin:10px 0}
+.verdict h3{margin:0 0 4px;font-size:20px}
+.log{font-size:13.5px;margin:8px 0 0;padding:0;list-style:none}
+.log li{padding:3px 0 3px 22px;position:relative}
+.log li::before{content:"•";position:absolute;left:6px}
+.log li.ok::before{content:"✓";color:var(--safe);font-weight:800}
+.log li.no::before{content:"✗";color:var(--dead);font-weight:800}
+.badge{display:inline-block;padding:1px 9px;border-radius:99px;font-size:12px;font-weight:700;color:#fff;background:var(--c)}
+svg text{font-family:"Bricolage Grotesque",sans-serif}
+.edge{fill:none;stroke-width:2.6}
+.edge.cyc{stroke:var(--dead);stroke-width:4;stroke-dasharray:9 6;animation:fl .7s linear infinite}
+@keyframes fl{to{stroke-dashoffset:-30}}
+@media(prefers-reduced-motion:reduce){.edge.cyc{animation:none}.chip,.gauge .fi{transition:none}}
+.node{transition:opacity .4s}
+.note{color:var(--mut);font-size:13.5px}
+td[contenteditable]{text-align:left;min-width:140px;background:var(--soft)}
+
+:root{--bg:#f3f6fc;--card:#fff;--ink:#1b2540;--mut:#7c879f;--line:#e7ebf4;--pri:#4776f5;--safe:#13a879;--dead:#e45467;--wait:#e6a23c;--uns:#e87935;--inv:#8c63df}
+body{background:#f3f6fc;color:#1b2540;font-family:Inter,"Segoe UI",Arial,sans-serif}
+.app-shell{min-height:100vh}
+.sidebar{position:fixed;inset:0 auto 0 0;width:255px;background:linear-gradient(180deg,#101b3c,#152752);color:#fff;padding:24px 16px;z-index:20;overflow-y:auto}
+.brand{display:flex;align-items:center;gap:12px;padding:2px 10px 28px}
+.brand-icon{width:42px;height:42px;border-radius:14px;background:linear-gradient(135deg,#4f7cff,#31c4d7);display:grid;place-items:center;font-size:21px}
+.brand strong{display:block;font-size:17px;letter-spacing:.2px}.brand small{display:block;color:#94a6d2;margin-top:4px;font-size:11px}
+.side-label{font-size:10px;letter-spacing:1.7px;color:#7f91bc;font-weight:800;padding:12px 13px}
+.side-nav{display:grid;gap:6px}
+.side-nav button{width:100%;border:0;color:#aab8d8;background:transparent;padding:12px 13px;border-radius:11px;text-align:left;display:flex;align-items:center;gap:12px;font-size:13px;font-weight:600;cursor:pointer}
+.side-nav button:hover,.side-nav button.active{background:linear-gradient(90deg,rgba(76,119,246,.25),rgba(76,119,246,.07));color:white}
+.side-nav button.active{box-shadow:inset 3px 0 #39c6d8}
+.side-nav .ico{width:21px;text-align:center;font-size:16px}
+.side-bottom{margin-top:35px;background:#1d315d;border:1px solid #304572;border-radius:14px;padding:14px}
+.side-bottom small{color:#9fb0d5}.side-bottom strong{display:block;font-size:13px;margin:8px 0}.side-bottom p{font-size:11px;line-height:1.6;color:#b4c0dc;margin:0}
+.main-shell{margin-left:255px;min-height:100vh;padding:25px 30px 40px}
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:18px;margin:0 auto 20px;max-width:1500px}
+.crumb{font-size:12px;color:#7c879f;margin-bottom:7px}.topbar h2{margin:0;font-size:25px;letter-spacing:-.6px}
+.live{background:#e4f8f1;color:#09845d;padding:8px 11px;border-radius:30px;font-size:11px;font-weight:800;display:flex;align-items:center;gap:7px}
+.live-dot{width:7px;height:7px;background:#14b887;border-radius:50%;box-shadow:0 0 0 4px #c9f1e3}
+.avatar{width:38px;height:38px;border-radius:13px;background:#e4eaff;color:#3f61cb;display:grid;place-items:center;font-weight:800;font-size:12px}
+.wrap{max-width:1500px;margin:0 auto;padding:0 0 40px}
+.wrap>h1{font-size:25px;color:#1b2540;margin:0 0 5px;letter-spacing:-.6px}
+.wrap>.sub{font-size:12px;line-height:1.6;margin:0 0 15px;max-width:900px}
+.card{box-shadow:0 12px 32px rgba(28,48,94,.07);border-radius:17px;padding:20px}
+nav[role=tablist]{display:flex;gap:7px;flex-wrap:wrap;margin:16px 0 18px}
+nav[role=tablist] button{background:#fff;color:#596681;border:1px solid #e7ebf4;border-radius:10px;padding:10px 13px;font-size:12px}
+nav[role=tablist] button[aria-selected=true]{background:#4776f5;color:#fff;border-color:#4776f5}
+.pill{font-size:11px}.legend{gap:7px}
+.btn{font-size:12px;border-radius:10px;padding:9px 12px}
+.note{font-size:12px}
+@media(max-width:900px){.sidebar{width:220px}.main-shell{margin-left:220px;padding:20px}}
+@media(max-width:680px){.sidebar{width:68px;padding:16px 8px}.brand{padding:0 4px 25px;justify-content:center}.brand-text,.side-label,.side-nav .nav-text,.side-bottom{display:none}.side-nav button{justify-content:center;padding:13px 0}.side-nav .ico{font-size:18px}.main-shell{margin-left:68px;padding:17px 13px 28px}.topbar h2{font-size:20px}.topbar .live{display:none}.wrap>h1{font-size:21px}.card{padding:15px}}
+
+</style></head><body><div class="app-shell">
+<aside class="sidebar">
+  <div class="brand"><div class="brand-icon">⛓</div><div class="brand-text"><strong>DeadlockLab</strong><small>OS RESOURCE INTELLIGENCE</small></div></div>
+  <div class="side-label">WORKSPACE</div>
+  <nav class="side-nav" aria-label="Main navigation">
+    <button class="active" data-jump="t1"><span class="ico">▦</span><span class="nav-text">Banker's Algorithm</span></button>
+    <button data-jump="t2"><span class="ico">⌕</span><span class="nav-text">Detection & Recovery</span></button>
+    <button data-jump="t3"><span class="ico">✓</span><span class="nav-text">Test Results</span></button>
+    <button data-jump="t4"><span class="ico">✧</span><span class="nav-text">AI Usage Record</span></button>
+  </nav>
+  <div class="side-label">SYSTEM</div>
+  <div class="side-bottom"><small>SIMULATION STATUS</small><strong>● Local environment</strong><p>All algorithms run in your browser. No server or database required.</p></div>
+</aside>
+<main class="main-shell">
+<header class="topbar"><div><div class="crumb">Workspace / <span id="shellCrumb">Banker's Algorithm</span></div><h2>Deadlock Analysis Dashboard</h2></div><div style="display:flex;align-items:center;gap:10px"><div class="live"><span class="live-dot"></span> SIMULATION READY</div><div class="avatar">OS</div></div></header>
+<div class="wrap">
+<h1>Deadlock Lab</h1>
+<p class="sub">Four separate jobs, kept separate on purpose: <b>avoidance</b> (Banker’s Algorithm), <b>detection</b>, <b>recovery</b> and <b>prevention</b>. Edit any number and the dashboard re-checks it live.</p>
+<div class="legend">
+<span class="pill" style="--c:var(--safe)"><i></i>Safe: a full sequence exists</span>
+<span class="pill" style="--c:var(--uns)"><i></i>Unsafe: no sequence, not yet deadlock</span>
+<span class="pill" style="--c:var(--dead)"><i></i>Deadlocked: circular wait confirmed</span>
+<span class="pill" style="--c:var(--wait)"><i></i>Waiting: not enough Available</span>
+<span class="pill" style="--c:var(--inv)"><i></i>Invalid input</span></div>
+<nav role="tablist"><button role="tab" aria-selected="true" data-t="t1">1 · Banker’s Algorithm</button><button role="tab" aria-selected="false" data-t="t2">2 · Detect, recover, prevent</button><button role="tab" aria-selected="false" data-t="t3">3 · Test results (TC1–TC6)</button><button role="tab" aria-selected="false" data-t="t4">4 · AI usage record</button></nav>
+
+<section id="t1" class="tab on">
+<div class="row"><b>Load scenario:</b>
+<button class="btn" data-sc="A">A · Safe state</button><button class="btn" data-sc="B">B · Request &gt; Available</button><button class="btn" data-sc="C">C · Request → unsafe</button><button class="btn" data-sc="F">F · Invalid allocation</button></div>
+<div class="grid"><div>
+<div class="card"><h2>System state</h2><p class="note">Resources A, B, C. Totals are Allocation + Available. Need = Max − Allocation, recalculated as you type.</p>
+<div class="scroll"><table id="mt"></table></div><div id="stat"></div></div>
+<div class="card"><h2>Submit a resource request</h2>
+<div class="row">Process P<input type="number" id="rp" value="1" style="width:56px"> requests A<input type="number" id="r0" value="1"> B<input type="number" id="r1" value="0"> C<input type="number" id="r2" value="2"> <button class="btn p" id="rq">Check request</button></div>
+<p class="note">Try P9 or −1 to see invalid input handled differently from a request that simply must wait.</p><div id="vd"></div></div></div>
+<div><div class="card"><h2>Safety check</h2><div class="row"><button class="btn p" id="run">▶ Run safety algorithm</button><span class="note" id="rs"></span></div>
+<div class="chips" id="chips"></div><div id="gauges"></div><div id="sv"></div><ul class="log" id="slog"></ul></div></div></div>
+</section>
+
+<section id="t2" class="tab">
+<div class="row"><b>Load scenario:</b><button class="btn" data-dp="dead">D · Circular wait</button><button class="btn" data-dp="chain">Chain, no cycle</button>
+<label><input type="checkbox" id="pv"> Prevention: acquire resources in order R1 → R4</label></div>
+<div class="grid"><div class="card"><h2>Resource-allocation graph</h2><p class="note">Solid arrow: resource held by process. Dashed arrow: process waiting for resource. Single-instance resources.</p>
+<svg id="g" viewBox="0 0 520 400" width="100%" role="img" aria-label="Resource allocation graph"><defs>
+<marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="context-stroke"/></marker></defs><g id="gg"></g></svg></div>
+<div><div class="card"><h2>Who holds what</h2><div class="scroll"><table id="dt"></table></div>
+<div id="dv"></div></div>
+<div class="card"><h2>Prevention trade-off</h2><div id="pvt"></div></div></div></div>
+<p class="note">Detection looks at what is already stuck. The Banker’s tab never sees this graph: it only guards future requests. With several instances per resource a cycle is necessary but not always sufficient; with single instances (as here) a cycle is deadlock.</p>
+</section>
+
+<section id="t3" class="tab"><div class="card"><div class="row"><h2 style="margin:0">Analytical results table</h2><button class="btn p" id="rall">↻ Re-run all tests</button></div>
+<p class="note">Every “Actual result” below is produced by the same functions the dashboard uses, not typed in.</p><div class="scroll"><table id="tt"></table></div></div></section>
+
+<section id="t4" class="tab"><div class="card"><h2>AI usage record</h2><p class="note">Click any cell to edit. Replace with what your group really did and verified.</p>
+<div class="scroll"><table><tr><th class="l">AI tool</th><th class="l">Purpose</th><th class="l">Output generated</th><th class="l">Student verification</th></tr>
+<tr><td contenteditable>Claude</td><td contenteditable>Dashboard design</td><td contenteditable>Single-page HTML dashboard layout, graph view</td><td contenteditable>We changed colours and tested every tab on a phone.</td></tr>
+<tr><td contenteditable>Claude</td><td contenteditable>Algorithm/code assistance</td><td contenteditable>Safety algorithm, request check, cycle detection</td><td contenteditable>Hand-traced the textbook 5×3 example and matched P1,P3,P4,P0,P2.</td></tr>
+<tr><td contenteditable>Claude</td><td contenteditable>Test-case generation or debugging</td><td contenteditable>Scenarios A–F and edge cases</td><td contenteditable>Added our own cases and compared with hand calculation.</td></tr></table></div></div></section>
+</div>
+<script>
+const $=s=>document.querySelector(s),vf=v=>"["+v.join(", ")+"]",cl=o=>JSON.parse(JSON.stringify(o)),R=["A","B","C"];
+const BASE={A:[[0,1,0],[2,0,0],[3,0,2],[2,1,1],[0,0,2]],M:[[7,5,3],[3,2,2],[9,0,2],[2,2,2],[4,3,3]],V:[3,3,2]};
+let S=cl(BASE),timer=0;
+document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{document.querySelectorAll("nav button").forEach(x=>x.setAttribute("aria-selected",x==b));document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on",t.id==b.dataset.t));if(b.dataset.t=="t3")tests()});
+/* ---------- core algorithms ---------- */
+const needOf=(s,i)=>s.M[i].map((x,j)=>x-s.A[i][j]);
+function safety(A,M,V){const n=A.length;let W=[...V],F=Array(n).fill(false),seq=[],steps=[],go=true;
+while(go){go=false;for(let i=0;i<n;i++)if(!F[i]&&M[i].every((x,j)=>x-A[i][j]<=W[j])){const b=[...W];W=W.map((w,j)=>w+A[i][j]);F[i]=true;seq.push(i);steps.push({i,b,a:[...W]});go=true}}
+return{safe:F.every(Boolean),seq,steps,stuck:F.map((f,i)=>f?-1:i).filter(i=>i>=0)}}
+const sysErr=s=>{const e=[];s.A.forEach((r,i)=>r.forEach((x,j)=>{if(!Number.isInteger(x)||x<0)e.push(`A[P${i}][${R[j]}] is negative or not a whole number`);else if(x>s.M[i][j])e.push(`P${i} holds ${x} of ${R[j]} but declared Max ${s.M[i][j]}`)}));s.V.forEach((x,j)=>{if(!Number.isInteger(x)||x<0)e.push(`Available ${R[j]} is invalid`)});return e};
+function check(s,p,req){const n=s.A.length;
+if(!Number.isInteger(p)||p<0||p>=n)return{st:"INVALID",msg:`P${p} does not exist. Valid processes are P0–P${n-1}.`,log:[["no","Process id out of range"]]};
+if(req.some(x=>!Number.isInteger(x)||x<0))return{st:"INVALID",msg:"Requests must be whole numbers ≥ 0. A negative request is an input error, not a waiting request.",log:[["no","Negative / non-integer amount"]]};
+const nd=needOf(s,p);
+if(req.some((x,j)=>x>nd[j]))return{st:"INVALID",msg:`Request ${vf(req)} exceeds P${p}’s remaining Need ${vf(nd)}. The process is breaking its declared maximum claim.`,log:[["ok","Process id valid"],["no",`Request ≤ Need? ${vf(req)} vs ${vf(nd)}: NO`]]};
+if(req.every(x=>x==0))return{st:"GRANTED",noop:true,msg:"Zero request: a valid boundary case. Nothing to allocate, state unchanged.",log:[["ok","All checks pass trivially"]]};
+const lg=[["ok","Process id valid"],["ok",`Request ≤ Need ${vf(nd)}`]];
+if(req.some((x,j)=>x>s.V[j]))return{st:"WAIT",msg:`Request ${vf(req)} is legal but Available is only ${vf(s.V)}. The process must wait. The allocation is untouched.`,log:[...lg,["no",`Request ≤ Available ${vf(s.V)}: NO`]]};
+lg.push(["ok",`Request ≤ Available ${vf(s.V)}`]);
+const A2=cl(s.A),V2=s.V.map((v,j)=>v-req[j]);A2[p]=A2[p].map((a,j)=>a+req[j]);
+lg.push(["",`Pretend to allocate → Available ${vf(V2)}, P${p} now holds ${vf(A2[p])}`]);
+const r=safety(A2,s.M,V2);
+if(r.safe){lg.push(["ok",`Safety check on pretend state: safe, sequence ${r.seq.map(i=>"P"+i).join(" → ")}`]);return{st:"GRANTED",msg:`Granted. The pretend state is safe (${r.seq.map(i=>"P"+i).join(", ")}), so the allocation is committed.`,log:lg,A2,V2}}
+lg.push(["no",`Safety check on pretend state: only ${r.seq.length} of ${s.A.length} can finish; stuck: ${r.stuck.map(i=>"P"+i).join(", ")}`],["",`Roll back → Available ${vf(s.V)} restored`]);
+return{st:"UNSAFE",msg:`Denied. Granting would leave no complete safe sequence. The original state is restored. This is an unsafe state, not a deadlock: nobody is blocked yet, but the OS could no longer guarantee that everyone finishes.`,log:lg}}
+/* ---------- Banker UI ---------- */
+function buildTable(){let h=`<tr><th class="l" rowspan=2>Proc</th><th colspan=3>Allocation</th><th colspan=3 class="g">Max</th><th colspan=3 class="g">Need</th></tr><tr>${[0,1,2].map(()=>R.map(r=>`<th${r=="A"?' class="g"':""}>${r}</th>`).join("")).join("")}</tr>`;
+S.A.forEach((_,i)=>{h+=`<tr><td class="l"><b>P${i}</b></td>`+[["A",0],["M",1]].map(([k,g])=>S[k][i].map((x,j)=>`<td${j==0&&g?' class="g"':""}><input type="number" min="0" data-k="${k}" data-i="${i}" data-j="${j}" value="${x}" aria-label="${k=="A"?"Allocation":"Max"} P${i} ${R[j]}"></td>`).join("")).join("")+[0,1,2].map(j=>`<td class="n${j==0?" g":""}" id="n${i}${j}"></td>`).join("")+"</tr>"});
+h+=`<tr><td class="l"><b>Available</b></td><td colspan=3>${S.V.map((x,j)=>`<input type="number" min="0" data-k="V" data-j="${j}" value="${x}" aria-label="Available ${R[j]}">`).join("")}</td><td colspan=6 class="note l" id="tot"></td></tr>`;
+$("#mt").innerHTML=h;$("#mt").querySelectorAll("input").forEach(e=>e.oninput=()=>{const v=e.value===""?NaN:+e.value;e.dataset.k=="V"?S.V[+e.dataset.j]=v:S[e.dataset.k][+e.dataset.i][+e.dataset.j]=v;refresh()});refresh()}
+function refresh(){S.A.forEach((_,i)=>needOf(S,i).forEach((x,j)=>$("#n"+i+j).textContent=x));
+const tot=S.V.map((v,j)=>v+S.A.reduce((a,r)=>a+r[j],0));$("#tot").textContent="Total instances: A="+tot[0]+", B="+tot[1]+", C="+tot[2];
+document.querySelectorAll("#mt input").forEach(e=>{const k=e.dataset.k,v=k=="V"?S.V[+e.dataset.j]:S[k][+e.dataset.i][+e.dataset.j];e.classList.toggle("bad",!Number.isInteger(v)||v<0||(k=="A"&&v>S.M[+e.dataset.i][+e.dataset.j]))});
+const er=sysErr(S);$("#stat").innerHTML=er.length?`<div class="verdict" style="--c:var(--inv)"><h3>Invalid input</h3>${er.map(x=>"<div>"+x+"</div>").join("")}<div class="note">Safety checks are paused until this is fixed. Invalid is different from unsafe.</div></div>`:"";
+$("#run").disabled=!!er.length;drawGauges(S.V,tot);chipsInit()}
+let TOT=[10,5,7];
+function drawGauges(w,tot){TOT=tot||TOT;$("#gauges").innerHTML=R.map((r,j)=>`<div class="gauge"><b>Work ${r}</b><div class="tr"><div class="fi" style="width:${Math.min(100,100*w[j]/(TOT[j]||1))}%"></div></div><span class="mono">${w[j]}/${TOT[j]}</span></div>`).join("")}
+function chipsInit(done=[],stuck=[]){$("#chips").innerHTML=S.A.map((_,i)=>{const o=done.indexOf(i);return`<div class="chip ${o>=0?"done":stuck.includes(i)?"stuck":""}">P${i}<small>${o>=0?"#"+(o+1):"Need "+needOf(S,i).join(",")}</small></div>`}).join("")}
+$("#run").onclick=()=>{clearInterval(timer);const r=safety(S.A,S.M,S.V);$("#slog").innerHTML="";$("#sv").innerHTML="";let k=0,done=[];chipsInit();drawGauges(S.V);
+$("#rs").textContent="Work starts as Available "+vf(S.V);
+timer=setInterval(()=>{if(k<r.steps.length){const s=r.steps[k++];done.push(s.i);chipsInit(done);drawGauges(s.a);
+$("#slog").insertAdjacentHTML("beforeend",`<li class="ok">P${s.i}: Need ${vf(needOf(S,s.i))} ≤ Work ${vf(s.b)}. It finishes and returns its Allocation ${vf(S.A[s.i])}, so Work becomes ${vf(s.a)}</li>`)}
+else{clearInterval(timer);chipsInit(done,r.stuck);$("#sv").innerHTML=r.safe?`<div class="verdict" style="--c:var(--safe)"><h3>SAFE</h3>Safe sequence: <b class="mono">&lt;${r.seq.map(i=>"P"+i).join(", ")}&gt;</b><div class="note">Why: at every step some unfinished process can have its whole remaining Need satisfied from Work, so everyone can finish in this order.</div></div>`:`<div class="verdict" style="--c:var(--uns)"><h3>UNSAFE</h3>Stuck: ${r.stuck.map(i=>"P"+i).join(", ")}. None of them can have its full Need met from Work ${vf(r.steps.length?r.steps[r.steps.length-1].a:S.V)}.<div class="note">Unsafe means deadlock is possible. It is not deadlock yet.</div></div>`}},900)};
+function runReq(p,req){const r=check(S,p,req),C={GRANTED:"safe",WAIT:"wait",UNSAFE:"uns",INVALID:"inv"}[r.st];
+const T={GRANTED:"GRANTED",WAIT:"MUST WAIT (not granted)",UNSAFE:"DENIED: unsafe state",INVALID:"INVALID INPUT"}[r.st];
+$("#vd").innerHTML=`<div class="verdict" style="--c:var(--${C})"><h3>${T}</h3>${r.msg}<ul class="log">${r.log.map(l=>`<li class="${l[0]}">${l[1]}</li>`).join("")}</ul></div>`;
+if(r.st=="GRANTED"&&!r.noop){S.A=r.A2;S.V=r.V2;buildTable();$("#vd").querySelector(".verdict").scrollIntoView({block:"nearest"})}}
+$("#rq").onclick=()=>runReq(+$("#rp").value,[0,1,2].map(j=>$("#r"+j).value===""?NaN:+$("#r"+j).value));
+const SC={A:[BASE,1,[1,0,2]],B:[BASE,0,[7,4,3]],C:[BASE,4,[3,3,0]],F:[{A:[[0,1,0],[2,0,0],[3,0,2],[3,1,1],[0,0,2]],M:BASE.M,V:BASE.V},3,[0,0,0]]};
+document.querySelectorAll("[data-sc]").forEach(b=>b.onclick=()=>{const [s,p,q]=SC[b.dataset.sc];S=cl(s);$("#vd").innerHTML="";$("#sv").innerHTML="";$("#slog").innerHTML="";buildTable();$("#rp").value=p;q.forEach((x,j)=>$("#r"+j).value=x);
+if(b.dataset.sc=="A")$("#run").click();else if(b.dataset.sc!="F")runReq(p,q)});
+/* ---------- detection / recovery / prevention ---------- */
+const PRE={dead:{hold:[0,1,2,3],want:[1,2,0,-1],dead:[0,0,0,0]},chain:{hold:[0,1,2,3],want:[1,2,-1,-1],dead:[0,0,0,0]}};
+let D=cl(PRE.dead);
+function blocked(d,ord){return d.hold.map((h,p)=>ord&&!d.dead[p]&&d.want[p]>=0&&h>=0&&d.want[p]<h)}
+function detect(d,ord){const bl=blocked(d,ord),hr=[];d.hold.forEach((h,p)=>{if(h>=0&&!d.dead[p])hr[h]=p});
+const nx=p=>d.dead[p]||bl[p]||d.want[p]<0||hr[d.want[p]]===undefined?-1:hr[d.want[p]];
+for(let s=0;s<4;s++){let path=[],p=s;while(p>=0&&!path.includes(p)){path.push(p);p=nx(p)}if(p>=0)return{cycle:path.slice(path.indexOf(p)),bl}}return{cycle:[],bl}}
+function drawD(){const ord=$("#pv").checked,{cycle,bl}=detect(D,ord),pos=[],lab=[];
+for(let i=0;i<8;i++){const a=(i*45-90)*Math.PI/180;pos.push([260+150*Math.cos(a),200+150*Math.sin(a)])}
+const P=p=>pos[p*2],Rr=r=>pos[r*2+1];
+const ed=(a,b,dash,cls,col,tag)=>{const dx=b[0]-a[0],dy=b[1]-a[1],L=Math.hypot(dx,dy),u=[dx/L,dy/L];return`<line class="edge ${cls}" x1="${a[0]+u[0]*24}" y1="${a[1]+u[1]*24}" x2="${b[0]-u[0]*28}" y2="${b[1]-u[1]*28}" stroke="${col}" ${dash&&!cls?'stroke-dasharray="7 5"':""} marker-end="url(#ar)"><title>${tag}</title></line>`};
+const inCyc=p=>cycle.includes(p);let h="";
+D.hold.forEach((r,p)=>{if(r>=0&&!D.dead[p])h+=ed(Rr(r),P(p),0,inCyc(p)||cycle.some(q=>D.want[q]==r)?"cyc":"","var(--"+(cycle.some(q=>D.want[q]==r)?"dead":"safe")+")",`R${r+1} held by P${p+1}`)});
+D.want.forEach((r,p)=>{if(r>=0&&!D.dead[p])h+=ed(P(p),Rr(r),1,inCyc(p)?"cyc":"",bl[p]?"var(--mut)":inCyc(p)?"var(--dead)":"var(--wait)",`P${p+1} waits for R${r+1}${bl[p]?" (blocked by ordering policy)":""}`).replace("<line",bl[p]?'<line opacity=".4" stroke-dasharray="2 6"':"<line")});
+for(let p=0;p<4;p++){const[x,y]=P(p),c=inCyc(p)?"var(--dead)":"var(--pri)";h+=`<g class="node" opacity="${D.dead[p]?.25:1}"><circle cx="${x}" cy="${y}" r="24" fill="var(--card)" stroke="${c}" stroke-width="3"/><text x="${x}" y="${y+5}" text-anchor="middle" font-weight="800" fill="var(--ink)">P${p+1}</text></g>`;
+const[a,b]=Rr(p);const free=!D.hold.some((r,q)=>r==p&&!D.dead[q]);h+=`<g class="node"><rect x="${a-22}" y="${b-22}" width="44" height="44" rx="8" fill="var(--soft)" stroke="var(--mut)" stroke-width="2"/><text x="${a}" y="${b+5}" text-anchor="middle" font-weight="800" fill="var(--ink)">R${p+1}</text>${free?`<text x="${a}" y="${b+38}" text-anchor="middle" font-size="11" fill="var(--safe)">free</text>`:""}</g>`}
+$("#gg").innerHTML=h;
+let t=`<tr><th class="l">Process</th><th>Holds</th><th>Waits for</th><th></th></tr>`;
+for(let p=0;p<4;p++){const o=(v,x)=>`<option value="${x}"${v==x?" selected":""}>${x<0?"—":"R"+(x+1)}</option>`,od=[-1,0,1,2,3];
+t+=`<tr><td class="l"><b>P${p+1}</b>${D.dead[p]?' <span class="note">terminated</span>':""}</td><td><select data-d="hold" data-p="${p}" ${D.dead[p]?"disabled":""}>${od.map(x=>o(D.hold[p],x)).join("")}</select></td><td><select data-d="want" data-p="${p}" ${D.dead[p]?"disabled":""}>${od.map(x=>o(D.want[p],x)).join("")}</select></td><td>${inCyc(p)?`<button class="btn" data-kill="${p}">Terminate</button>`:""}</td></tr>`}
+$("#dt").innerHTML=t;
+$("#dt").querySelectorAll("select").forEach(s=>s.onchange=()=>{const p=+s.dataset.p,v=+s.value;if(s.dataset.d=="hold"&&v>=0)D.hold.forEach((x,q)=>{if(q!=p&&x==v)D.hold[q]=-1});D[s.dataset.d][p]=v;drawD()});
+$("#dt").querySelectorAll("[data-kill]").forEach(b=>b.onclick=()=>{const p=+b.dataset.kill,r=D.hold[p];D.dead[p]=1;D.hold[p]=-1;D.want[p]=-1;drawD();
+$("#dv").insertAdjacentHTML("beforeend",`<p class="note">Recovery: P${p+1} terminated, R${r+1} released. ${cycle.length?"":"No cycle remains."}</p>`)});
+const nm=cycle.map(p=>"P"+(p+1));
+$("#dv").innerHTML=cycle.length?`<div class="verdict" style="--c:var(--dead)"><h3>DEADLOCK DETECTED</h3>Cycle: <b class="mono">${nm.join(" → ")} → ${nm[0]}</b><div class="note">Each process holds a resource the next one needs and none can release it. Single-instance resources, so a cycle confirms deadlock. Pick a victim and terminate it to see recovery.</div></div>`:`<div class="verdict" style="--c:var(--safe)"><h3>NO DEADLOCK</h3>No cycle in the wait-for graph${ord?" under the ordering policy":""}.</div>`;
+const nb=bl.map((x,p)=>x?`P${p+1} asked for R${D.want[p]+1} while holding R${D.hold[p]+1}`:"").filter(Boolean);
+$("#pvt").innerHTML=ord?`<p><b>Policy on:</b> a process may only request a resource numbered higher than any it holds. That removes <b>circular wait</b>.</p>${nb.length?`<p>Refused by policy: ${nb.join("; ")}. That process must release first and re-request in order.</p>`:"<p>No request broke the ordering here.</p>"}<p class="note"><b>Cost:</b> held resources sit idle while processes release and re-acquire; processes may hold resources longer than needed; concurrency and utilisation drop. Programs must also know their resource order in advance.</p>`:`<p><b>Policy off:</b> any request order is allowed, so the circular wait above can form. Tick the box to enforce ordering and compare. Utilisation is higher, but deadlock is possible.</p>`}
+$("#pv").onchange=drawD;
+document.querySelectorAll("[data-dp]").forEach(b=>b.onclick=()=>{D=cl(PRE[b.dataset.dp]);drawD()});
+/* ---------- tests ---------- */
+function tests(){const rows=[];const sa=safety(BASE.A,BASE.M,BASE.V),seqs=x=>x.seq.map(i=>"P"+i).join(", ");
+rows.push(["TC1","Safe state (5×3 example)",`SAFE: &lt;${seqs(sa)}&gt;`,"Safe sequence found",sa.safe,`Need = Max − Alloc; ${sa.steps.length} steps each satisfied from Work. State is safe.`]);
+const b=check(BASE,0,[7,4,3]),b2=JSON.stringify(BASE);
+rows.push(["TC2","P0 requests [7,4,3] with Available [3,3,2]",`${b.st}; state unchanged`,"Request not granted immediately",b.st=="WAIT"&&b2==JSON.stringify(BASE),"Request ≤ Need but > Available, so P0 waits. Not invalid, and nothing is modified."]);
+const c=check(BASE,4,[3,3,0]);
+rows.push(["TC3","P4 requests [3,3,0]",`${c.st}; rolled back`,"Request denied; state unchanged",c.st=="UNSAFE","Request ≤ Need and ≤ Available, but pretend Available = [0,0,2] lets nobody finish. Unsafe is not deadlock: no one is blocked yet."]);
+const dd=detect(PRE.dead,false);
+rows.push(["TC4","P1→R2, P2→R3, P3→R1 circular wait",dd.cycle.length?"Deadlock: "+dd.cycle.map(p=>"P"+(p+1)).join(" → "):"none","Deadlock identified by the selected detection method",dd.cycle.length==3,"Wait-for graph cycle with single-instance resources. Detection is separate from Banker’s, which only guards new requests."]);
+const pd=detect(PRE.dead,true);
+rows.push(["TC5","Same scenario + ordered acquisition",pd.cycle.length?"Cycle remains":`No cycle; refused: ${pd.bl.map((x,p)=>x?"P"+(p+1):"").filter(Boolean).join(",")}`,"Selected deadlock condition eliminated",!pd.cycle.length,"Circular wait removed. Trade-off: the refused process releases and re-requests, lowering utilisation and concurrency."]);
+const F6={A:[[1,0,0],[2,1,1]],M:[[1,0,0],[3,2,2]],V:[0,0,0]},f=safety(F6.A,F6.M,F6.V);
+const bad={A:[[3,0,0]],M:[[1,0,0]],V:[0,0,0]};
+const cs=[["Available = [0,0,0]",f.safe?"safe":"valid, unsafe (not an error)"],["P0 has Need 0, requests [1,0,0]",check(F6,0,[1,0,0]).st],["Zero request [0,0,0]",check(F6,1,[0,0,0]).st+" (no-op)"],["Process P7 (does not exist)",check(F6,7,[1,0,0]).st],["Negative request [-1,0,0]",check(F6,1,[-1,0,0]).st],["Allocation 3 > Max 1",sysErr(bad).length?"INVALID state":"accepted"]];
+rows.push(["TC6","Boundary and invalid inputs","<ul class='log'>"+cs.map(x=>`<li>${x[0]}: <b>${x[1]}</b></li>`).join("")+"</ul>","Correct handling or validation message",f.safe==false&&cs[1][1]=="INVALID"&&cs[3][1]=="INVALID"&&cs[4][1]=="INVALID"&&sysErr(bad).length>0,"Valid boundaries (zero Available, zero request) are processed. Bad ids, negatives and over-claims are rejected with a message."]);
+$("#tt").innerHTML=`<tr><th class="l">Test</th><th class="l">Condition</th><th class="l">Actual result</th><th class="l">Expected</th><th></th><th class="l">Analysis</th></tr>`+rows.map(r=>`<tr><td class="l"><b>${r[0]}</b></td><td class="l">${r[1]}</td><td class="l">${r[2]}</td><td class="l">${r[3]}</td><td><span class="badge" style="--c:var(--${r[4]?"safe":"dead"});color:#fff">${r[4]?"PASS":"FAIL"}</span></td><td class="l">${r[5]}</td></tr>`).join("")}
+$("#rall").onclick=tests;
+buildTable();drawD();$("#run").click();
+</script>
+</div></main></div>
+<script>
+document.querySelectorAll('.side-nav button').forEach(btn=>btn.addEventListener('click',()=>{
+ const target=btn.dataset.jump;
+ const tabButton=document.querySelector(`nav[role="tablist"] button[data-t="${target}"]`);
+ if(tabButton) tabButton.click();
+ document.querySelectorAll('.side-nav button').forEach(b=>b.classList.toggle('active',b===btn));
+ const labels={t1:"Banker's Algorithm",t2:"Detection & Recovery",t3:"Test Results",t4:"AI Usage Record"};
+ document.getElementById('shellCrumb').textContent=labels[target]||"Workspace";
+}));
+document.querySelectorAll('nav[role="tablist"] button').forEach(btn=>btn.addEventListener('click',()=>{
+ const target=btn.dataset.t;
+ document.querySelectorAll('.side-nav button').forEach(b=>b.classList.toggle('active',b.dataset.jump===target));
+ const labels={t1:"Banker's Algorithm",t2:"Detection & Recovery",t3:"Test Results",t4:"AI Usage Record"};
+ document.getElementById('shellCrumb').textContent=labels[target]||"Workspace";
+}));
+</script></body></html>
